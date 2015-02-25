@@ -34,9 +34,16 @@ def find_empty_id():
 '''
 Main function of the coordinator server
 
+Description:
 The coordinator server will take up to four other servers and automatically assign them their idenities. (i.e. Server 1/a) 
 For Step 1, it will forward any "send" messages from a server to another. It assumes that those servers have already handled the delays. 
 For Step 2-1 and 2-2, it will broadcast the data that it receives. It assumes that the properties of linearizability and sequential consistency are handled by the servers themselves in their messages. After the broadcast, it will wait to receive the ACKs from each server. The coordinator will not send an ACK itself since we are using TCP which ensures that the messages from the coordinator itself will not be out of order.
+
+Possible messages:
+    send message receiver_server
+    search-reply key key_available original_sender original_receiver
+    ACK
+    
 
 '''
 if __name__ == "__main__":
@@ -124,11 +131,14 @@ if __name__ == "__main__":
                         receiver_socket = id_to_socket[receiver_id]
                         receiver_socket.sendall("Message " + " " + sender_id_alpha + " " + sender_message)
                     
+                    # A search-reply request from one server to another, forward the message only to the original source server
+                    elif request[0].lower() == "search-reply":
+                        original_sender_id = request[-2]
+                        original_source_socket = id_to_socket[original_sender_id]
+                        original_source_socket.sendall(data)                    
                     
                     
-                    
-                    
-                    # A direct send request from one server to another, forward the message 
+                    # An ACK to tell the coordinator that the servers have received the original broadcast message
                     elif request[0].upper() == "ACK":
                         ack_count = 0
                                     

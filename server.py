@@ -11,7 +11,7 @@ import random
 # Global variables
 server_id = -1
 key_value_pairs = {}                
-                
+search = {}                
 
 '''
 Class to store message attributes
@@ -25,7 +25,7 @@ class Command:
 
 
 '''                
-Simple prompt to remind the client of their id
+Simple prompt to remind the server of their id
 '''
 def prompt() :
     global server_id
@@ -42,13 +42,16 @@ def delete_key(request):
     key_to_delete = request[1]
     key_deleted = key_value_pairs.pop(key_to_delete, None)
     
-    print "\nDeleted key: " + key_to_delete
+    if key_deleted != None:
+        print "\nKey " + key_to_delete + " deleted"
+    else: 
+        print "\nKey-value pair not found."
     prompt()
     
 '''
 Gets the key-value pair     
 '''      
-def get_key(request):
+def get_key(request, consistency_model = -1):
     global key_value_pairs
 
     key_to_get = request[1]
@@ -58,8 +61,8 @@ def get_key(request):
         print "Key-value pair not found."
         
     else:
-        print "Retrieved key-value pair: " + key_to_get + " -> " + value_gotten  
-            
+        if (consistency_model == "1" or consistency_model == "2"):
+            print "get " + key_to_get + " = " + value_gotten  
 
 '''
 Inserts the key-value pair 
@@ -72,22 +75,28 @@ def insert_key(request):
     consistency_model = request[3]
     key_value_pairs[key_to_insert] = value_to_insert
     
-    print "\nInserted key-value pair: " + key_to_insert + " -> " + value_to_insert 
-    prompt()
+    print "\nInserted key " + key_to_insert 
+    prompt() 
+    
     
 '''
 Updates the key-value pair     
 '''    
-def update_key(request):
+def update_key(request, local_update = False):
     global key_value_pairs
     
     key_to_update = request[1]
     value_to_update = request[2]
     consistency_model = request[3]
+    old_value = key_value_pairs[key_to_update] 
     key_value_pairs[key_to_update] = value_to_update  
             
-    print "\nUpdated key-value pair: " + key_to_update + " -> " + value_to_update    
-    prompt()     
+    if (local_update == True):   
+        print "\nKey " + key_to_update + " changed from " + old_value + " to " + value_to_update
+        
+    else:
+        print "\nKey " + key_to_update + " updated to " + value_to_update
+    prompt()   
             
 '''    
 Adds a message with either a preset delay or randomized delay based on the given receiver id to the appropriate queue
@@ -95,7 +104,7 @@ Adds a message with either a preset delay or randomized delay based on the given
 def add_message_to_queue(message, receiver_id, delay = -1):       
     max_delay_to_destination = max_delay[receiver_id]
     if (delay == -1):       
-        delay = random.randrange(0, max_delay_to_destination)   
+        delay = random.uniform(0, max_delay_to_destination)   
     command = Command(message, delay)
     queue_list[int(receiver_id)].put(command) 
            
@@ -111,9 +120,12 @@ Possible coordinator messages:
     get key model source_server
     insert key value model source_server
     update key value model source_server
+    search key source_server
+    search-reply key key_available original_source_server original_receiver_server
 '''
 def coordinator_message_handler(data):
     global server_id
+    global search
     
     
     # Extract the message from the coordinator    
@@ -148,7 +160,7 @@ def coordinator_message_handler(data):
         consistency_model = request[2]
         if source_server == server_id and consistency_model == "1":
             print ""
-            get_key(request)
+            get_key(request, consistency_model)
             prompt()
         
         # Send an ACK back to the coordinator server with a delay based on your server_id
@@ -158,9 +170,11 @@ def coordinator_message_handler(data):
     elif (request[0].lower() == "insert"):
         source_server = request[4]
         consistency_model = request[3]
-
-        insert_key(request)
         
+        if consistency_model == "1" or consistency_model == "2":
+            insert_key(request)
+            
+
         # Send an ACK back to the coordinator server with a delay based on your server_id
         add_message_to_queue("ACK " + server_id, server_id)
         
@@ -169,11 +183,51 @@ def coordinator_message_handler(data):
         source_server = request[4]
         consistency_model = request[3]
 
-        update_key(request)
+        if consistency_model == "1" or consistency_model == "2":
+            if source_server == server_id:
+                update_key(request, True)
+            else:
+                update_key(request, False)
         
         # Send an ACK back to the coordinator server with a delay based on your server_id
         add_message_to_queue("ACK " + server_id, server_id)
         
+    # If it is a search message, try to find the key and report the result back to the source server
+    elif (request[0].lower() == "search"):
+        source_server = request[2]
+        search_key = request[1]
+        key_found = key_value_pairs.get(search_key, None)
+
+        if key_found != None:
+            key_available = "true"
+        else:
+            key_available = "false"
+        
+        # Send the reply back to the coordinator server to forward to the source server
+        add_message_to_queue("search-reply " + search_key + " " + key_available + " " + source_server + " " + server_id, source_server)        
+
+    # If it is a search-reply message, get the response from the other servers for whether or not the have the key.
+    # search-reply key key_available original_source_server original_receiver_server
+    elif (request[0].lower() == "search-reply"):
+        search_key = request[1]
+        key_available = request[2]
+        originating_server = request[3]
+        receiver_server = request[4]
+        
+        if key_available == "true":
+            search[search_key][int(receiver_server)] = True
+        else: 
+            search[search_key][int(receiver_server)] = False
+ 
+        
+        if len(search[search_key]) == 4 and originating_server == server_id:
+            search_response = "Servers with key " + search_key + ": "
+            for i in range(1,5):
+                if search[search_key][i] == True:
+                    search_response = search_response + str(i) + " " 
+            
+            print search_response
+           
     #If it is an unrecognized message, print it out.
     else :
 
@@ -195,10 +249,13 @@ Possible user commands:
     show-all
     search key
     delay time
+    load (loads all the respective commands for this server from the command file)
+    
     
 '''
 def command_input_handler(data):
     global key_value_pairs
+    global search
     
     request = data.split()
 
@@ -211,9 +268,10 @@ def command_input_handler(data):
         add_message_to_queue(data, receiver_id)              
 
         
-        # Output the time that you sent the message according to the spec
+        # Output the time that you "sent" the message according to the spec
         extracted_message = " ".join(request[1:-1])
         message_receiver = request[-1].upper()
+        # Yes, this should be the right place to put this.
         print "Sent \"" + extracted_message + "\" to " + message_receiver + " at system time " + str(datetime.datetime.now().time())
 
 
@@ -235,7 +293,7 @@ def command_input_handler(data):
             if(consistency_model == '1'): 
                 add_message_to_queue(data.rstrip('\n') + " " + server_id, server_id)
             if(consistency_model == '2'): 
-                get_key(request)
+                get_key(request, consistency_model)
 
 
     # If it is an insert request, insert the key-value pair into the dictionary or broadcast the request, depending on the consistency model extracted from the request
@@ -257,16 +315,34 @@ def command_input_handler(data):
                 add_message_to_queue(data.rstrip('\n') + " " + server_id, server_id)       
         
         
-    # If it is an show-all request, print out all the entries in the dictionary
+    # If it is a show-all request, print out all the entries in the dictionary
     elif (request[0].lower() == "show-all"):
         for key,val in key_value_pairs.items():
             print key + " -> " + val
+
+    # If it is a search request, pull the information about the other servers
+    elif (request[0].lower() == "search"):
+        key = request[1]
+        
+        search[key] = {}
+        
+        # Send the a broadcast requesting information about the key's availability from the other servers
+        add_message_to_queue("search " + key + " " + server_id, server_id)   
+
             
-    # If it is an delay request, delay the message by the specified time
+    # If it is a delay request, delay the invocation by the specified time
     elif (request[0].lower() == "delay"):
-        delay_time = request[1]
-        time.sleep(delay_time)       
-            
+        delay_time = float(request[1])
+        time.sleep(delay_time)  
+                 
+    # If it is a load request, execute command from config_file       
+    elif (request[0].lower() == "load"):
+        my_command_format = id_to_alpha[server_id] + ':'
+        for command in input_commands:
+            command_parse = command.split() 
+            if command_parse[0].lower() == my_command_format :         
+                command_input_handler(" ".join(command_parse[1:])) 
+      
     # If it is not a valid request, send it to the coordinator to broadcast whatever the message was        
     else:    
         coordinator.send(data)
@@ -282,16 +358,21 @@ def command_input_handler(data):
 
         
         
-        
+       
+                
+                
+                
+                
+                
 '''        
-Thread to handle the messages from the coordinator server and user input. 
+Thread to handle the messages from the coordinator server. 
 
-It will obtain the list of ready sockets and delegate work to the respective coordinator and user input handlers.  
-For Step 1, if a server wants to send a message, it will print out the current time and put that message with a randomized delay based on the configuration file. If a server receives a message it will display the source, message, and the source.
-For Step 2-1 and 2-2, it will work just as the lecture stated. For Linearizability, the server will send the four commands (get, insert, etc.) to the coordinator (with a randomized delay based on its own max delay) for it to be totally broadcasted. All the serverss will then reply with an "ACK" and execute the original command if it is a write operation and ignore it if it is someone else's read operation. For Sequential Consistency, it is exactly the same as Linearizability except that "gets" are not broadcasted but immediately executed. 
-
-'''
-def input_receiver() :
+Description:
+It will obtain the list of ready sockets and delegate work to the respective coordinator message handler.  
+For Step 1, If a server receives a message, it will display the source, message, and the time.
+For Step 2-1 and 2-2, it will work just as the slides lecture stated. For Linearizability, after a server has sent one of the four major commands (get, insert, etc.) to the coordinator (with a randomized delay based on its own max delay) for it to be totally broadcasted, all the servers will then reply with an "ACK" and execute the original command if it is a write operation and ignore it if it is someone else's read operation. For Sequential Consistency, it is exactly the same as Linearizability except that "gets" are not broadcasted but immediately executed. 
+'''                
+def coordinator_message_receiver() :
 
     global server_id 
     global key_value_pairs
@@ -314,35 +395,37 @@ def input_receiver() :
                 coordinator_message_handler(data)
 
              
+       
+                
+'''        
+Thread to handle the messages from user input. 
+
+Description:
+It will obtain the list of ready sockets and delegate work to the respective user input handlers. 
+For Step 1, if a server wants to send a message, it will print out the current time and then put that message in the queue with a randomized delay based on the max delay from the configuration file.  
+For Step 2-1 and 2-2, it will work just as the slides lecture stated. For Linearizability, if a server wants to execute of the four major commands, (get, insert, etc.) it will send that command to the coordinator (with a randomized delay based on its own max delay) for it to be totally broadcasted. For Sequential Consistency, it is exactly the same as Linearizability except that "gets" are not broadcasted but immediately executed. 
+'''
+def user_input_receiver() :
+
+    global server_id 
+    global key_value_pairs
+
+    while 1:
+         
+        # Get the list sockets which are readable
+        read_sockets, write_sockets, error_sockets = select.select(socket_list , [], [])
+         
+        for sock in read_sockets:
+        
             # User issued a command from the command line
-            else :          
+            if sock != coordinator:       
                         
                 data = sys.stdin.readline()
                
                 # Let the user command handler handle the user input               
                 command_input_handler(data)
                   
-                prompt()
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
+                prompt()                
 
                 
                 
@@ -350,6 +433,7 @@ def input_receiver() :
 '''                
 Thread to manage the delayed message sending queues to the other nodes. 
 
+Description:
 There will be four message sending queues, one for every node.
 It loops through four queues and waits until the first of each queue is ready to send.
 The messages in the back of the queue are ignored until the front is sent, even if they have an earlier timestamp. This is to ensure the FIFO property.
@@ -390,11 +474,13 @@ def message_sender():
 ''' 
 Main function for the individual servers.
 
+Description:
 Each server connects to the coordinator and the coordinator will give them their unique ids.
-It will then spawn two threads: one to handle both the user input and messages from the coordinator, and the other to handle delayed message sending.
-The thread handling the user input and the coordinator's messages will have a handler for each option.
-The thread handling the delayed message sending will monitor four outgoing queues, one for each server. 
-
+It will then spawn three threads: one to handle the user input, one to handle the messages from the coordinator, and another to handle delayed message sending.
+The thread handling the user input will have a handler for every option listed in the spec as well as a function "load" that will load the commands from the command file.
+The thread handling the coordinator's messages will also have a handler for every message that is sent.
+The thread handling the delayed message sending will monitor four outgoing queues, one for each server.
+More detail can be found in each thread's description.
 '''
 if __name__ == "__main__":
     
@@ -414,10 +500,20 @@ if __name__ == "__main__":
     if(len(sys.argv) >= 3) :
         config_file = sys.argv[2]
         with open(config_file, "r") as ins:
-            i = 1
+           
             for line in ins:
-                max_delay[str(i)] = int(line)  
-                i = i+1
+                if len(line) > 1 :
+                    line_parse = line.split()
+                    if line_parse[0].lower() == 'a:' :
+                        max_delay['1'] = float(line_parse[1])  
+                    elif line_parse[0].lower() == 'b:' :
+                        max_delay['2'] = float(line_parse[1])  
+                    elif line_parse[0].lower() == 'c:' :
+                        max_delay['3'] = float(line_parse[1])  
+                    elif line_parse[0].lower() == 'd:' :
+                        max_delay['4'] = float(line_parse[1])  
+                    else :
+                        print 'Unknow format in config file' + line  
 
     # If a command file was given, add those commands into an array
     if(len(sys.argv) >= 4) :
@@ -426,9 +522,6 @@ if __name__ == "__main__":
             for line in ins:
                 input_commands.append((line))   
                 
-
-    #for i in xrange(1,5):
-    #    print "idx = " + str(i) + " : " + str(max_delay[str(i)])
 
     # Setup the socket to the coordinator
     coordinator = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -461,8 +554,12 @@ if __name__ == "__main__":
         queue_list.append(Queue.Queue())
     
     # Instatiates the std input and coordinator input thread
-    input_thread = threading.Thread(target=input_receiver, args=())
-    thread_list.append(input_thread)
+    user_input_thread = threading.Thread(target=user_input_receiver, args=())
+    thread_list.append(user_input_thread)
+    
+    # Instatiates the std input and coordinator input thread
+    coordinator_message_thread = threading.Thread(target=coordinator_message_receiver, args=())
+    thread_list.append(coordinator_message_thread)
     
     # Instatiates the queue thread
     queue_thread = threading.Thread(target=message_sender, args=())
@@ -472,10 +569,6 @@ if __name__ == "__main__":
     for thread in thread_list:
         thread.start()
     
-    # If the user had given us a command file, process all those commands with the handler
-    for command in input_commands:
-        command_input_handler(command)
      
     while(1):
         pass
-    

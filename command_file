@@ -1,0 +1,20 @@
+a: send hello world b
+a: delay 2.5
+a: send I am server a b
+a: delay 3
+a: send good bye server b b
+b: send testing 2 seconds a
+b: delay 2
+b: send testing complete a
+b: insert hello world 1
+b: delay 3
+b: get hello 1
+b: delay 3
+b: update hello again 2
+b: delay 3
+b: get hello 2
+c: send welcome a a
+c: delay 1
+c: send hello from c b
+c: delete hello
+d: delay 1
