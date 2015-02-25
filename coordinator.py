@@ -1,8 +1,9 @@
 # Coordinator server
  
 import socket, select, sys
- 
-# Function to broadcast chat messages to all connected clients
+''' 
+Function to broadcast the given message to all connected servers
+'''
 def broadcast_data (message):
     # Broadcast to everyone except the coordinator itself
     for socket in CONNECTION_LIST:
@@ -10,12 +11,12 @@ def broadcast_data (message):
             try :
                 socket.send(message)
             except :
-                # broken socket connection i.e. chat client pressed ctrl+c 
                 socket.close()
                 CONNECTION_LIST.remove(socket)
                 
-                
-# Function to find an empty server id for the connecting client             
+'''                
+Function to find an empty server id for the connecting server   
+'''          
 def find_empty_id():
     for i in range(1,5):
         key = str(i)
@@ -30,8 +31,14 @@ def find_empty_id():
     
     
     
+'''
+Main function of the coordinator server
 
-# Main function
+The coordinator server will take up to four other servers and automatically assign them their idenities. (i.e. Server 1/a) 
+For Step 1, it will forward any "send" messages from a server to another. It assumes that those servers have already handled the delays. 
+For Step 2-1 and 2-2, it will broadcast the data that it receives. It assumes that the properties of linearizability and sequential consistency are handled by the servers themselves in their messages. After the broadcast, it will wait to receive the ACKs from each server. The coordinator will not send an ACK itself since we are using TCP which ensures that the messages from the coordinator itself will not be out of order.
+
+'''
 if __name__ == "__main__":
      
     # List to keep track of socket descriptors
@@ -76,13 +83,13 @@ if __name__ == "__main__":
  
         for sock in read_sockets:
         
-            # A new connection received through server_socket
+            # A new server connection received through the server socket
             if sock == server_socket:
             
                 sockfd, addr = server_socket.accept()
         
                 
-                # Put the accepted socket data into the two-way hashmap
+                # Put the accepted socket's data into the two-way hashmap
                 empty_id = find_empty_id()
                 socket_to_id[sockfd] = empty_id
                 id_to_socket[empty_id] = sockfd
@@ -90,7 +97,6 @@ if __name__ == "__main__":
                 
                 print "Server " + socket_to_id[sockfd] +  " (%s, %s) connected" % addr
                  
-                #broadcast_data("[%s:%s] entered room\n" % addr)
                 
                 # Tell the newly connected client what their id is
                 sockfd.sendall("Server " + socket_to_id[sockfd] + "\n")
@@ -98,7 +104,7 @@ if __name__ == "__main__":
 
              
              
-            # Message from an existing client
+            # Message from an existing server
             else:
             
                 # Try to process data recieved from client
@@ -117,10 +123,18 @@ if __name__ == "__main__":
                         receiver_id = alpha_to_id[request[-1].lower()]
                         receiver_socket = id_to_socket[receiver_id]
                         receiver_socket.sendall("Message " + " " + sender_id_alpha + " " + sender_message)
-                        
+                    
+                    
+                    
+                    
+                    
+                    # A direct send request from one server to another, forward the message 
+                    elif request[0].upper() == "ACK":
+                        ack_count = 0
+                                    
                     # Otherwise broadcast that message to all the clients
                     else:
-                        broadcast_data("\r" + '<' + str(sock.getpeername()) + '> ' + data)                
+                        broadcast_data(data)         
                  
                 except:
                     broadcast_data("Client (%s, %s) is offline \n" % addr)
