@@ -1,6 +1,8 @@
 # Coordinator server
  
 import socket, select, sys
+import datetime
+import time
 ''' 
 Function to broadcast the given message to all connected servers
 '''
@@ -79,7 +81,8 @@ if __name__ == "__main__":
     alpha_to_id = { 'a':'1', 'b':'2', 'c':'3', 'd':'4' }
     id_to_alpha = { '1':'a', '2':'b', '3':'c', '4':'d' }
     
-    
+    # ACK counter for Step 2
+    ack_counter = 0
     
  
     print "Coordinator server started on port " + str(PORT)
@@ -118,7 +121,7 @@ if __name__ == "__main__":
                 try:  
                     data = sock.recv(RECV_BUFFER)
                     
-                    print("DATA RECEIVED: " + data) #FOR DEBUGGING, CAN DELETE
+                    print("DATA RECEIVED: " + data + "            " + str(datetime.datetime.now().time())) #FOR DEBUGGING, CAN DELETE
                     
                     request = data.split()
                     
@@ -140,7 +143,7 @@ if __name__ == "__main__":
                     
                     # An ACK to tell the coordinator that the servers have received the original broadcast message
                     elif request[0].upper() == "ACK":
-                        ack_count = 0
+                        ack_counter = ack_counter + 1
                                     
                     # Otherwise broadcast that message to all the clients
                     else:

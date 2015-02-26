@@ -11,7 +11,8 @@ import random
 # Global variables
 server_id = -1
 key_value_pairs = {}                
-search = {}                
+search = {}                 
+active_command = None                
 
 '''
 Class to store message attributes
@@ -126,6 +127,7 @@ Possible coordinator messages:
 def coordinator_message_handler(data):
     global server_id
     global search
+    global active_command
     
     
     # Extract the message from the coordinator    
@@ -154,17 +156,23 @@ def coordinator_message_handler(data):
         # Send an ACK back to the coordinator server with a delay based on your server_id
         add_message_to_queue("ACK " + server_id, server_id)
         
+        active_command = None
+        
     # If it is a get message, get the information associated with that key according to who's request it was
     elif (request[0].lower() == "get"):
         source_server = request[3]
         consistency_model = request[2]
-        if source_server == server_id and consistency_model == "1":
-            print ""
-            get_key(request, consistency_model)
-            prompt()
-        
-        # Send an ACK back to the coordinator server with a delay based on your server_id
-        add_message_to_queue("ACK " + server_id, server_id)
+        if consistency_model == "1":
+            if source_server == server_id:
+                print ""
+                get_key(request, consistency_model)
+                prompt()    
+                
+            # Send an ACK back to the coordinator server with a delay based on your server_id
+            add_message_to_queue("ACK " + server_id, server_id)
+            
+        active_command = None
+            
 
     # If it is an insert message, insert the key-value pair into the dictionary according to who's request it was
     elif (request[0].lower() == "insert"):
@@ -174,9 +182,10 @@ def coordinator_message_handler(data):
         if consistency_model == "1" or consistency_model == "2":
             insert_key(request)
             
-
-        # Send an ACK back to the coordinator server with a delay based on your server_id
-        add_message_to_queue("ACK " + server_id, server_id)
+            # Send an ACK back to the coordinator server with a delay based on your server_id
+            add_message_to_queue("ACK " + server_id, server_id)
+        
+        active_command = None
         
     # If it is an update message, update the key-value pair into the dictionary according to who's request it was
     elif (request[0].lower() == "update"):
@@ -189,8 +198,11 @@ def coordinator_message_handler(data):
             else:
                 update_key(request, False)
         
-        # Send an ACK back to the coordinator server with a delay based on your server_id
-        add_message_to_queue("ACK " + server_id, server_id)
+            # Send an ACK back to the coordinator server with a delay based on your server_id
+            add_message_to_queue("ACK " + server_id, server_id)
+        
+        active_command = None
+        
         
     # If it is a search message, try to find the key and report the result back to the source server
     elif (request[0].lower() == "search"):
@@ -227,6 +239,9 @@ def coordinator_message_handler(data):
                     search_response = search_response + str(i) + " " 
             
             print search_response
+            prompt()
+            
+            active_command = None
            
     #If it is an unrecognized message, print it out.
     else :
@@ -256,6 +271,7 @@ Possible user commands:
 def command_input_handler(data):
     global key_value_pairs
     global search
+    global active_command
     
     request = data.split()
 
@@ -282,7 +298,7 @@ def command_input_handler(data):
             print "DELETE usage: delete key"
         else:
             add_message_to_queue(data.rstrip('\n') + " " + server_id, server_id)
-            
+            active_command = "delete"
                     
     # If it is a get request, either get the local information immediately or broadcast a read request, depending on the consistency model extracted from the request
     elif (request[0].lower() == "get"):
@@ -292,6 +308,8 @@ def command_input_handler(data):
             consistency_model = request[2]  
             if(consistency_model == '1'): 
                 add_message_to_queue(data.rstrip('\n') + " " + server_id, server_id)
+                active_command = "get"
+                
             if(consistency_model == '2'): 
                 get_key(request, consistency_model)
 
@@ -304,7 +322,9 @@ def command_input_handler(data):
             consistency_model = request[3]
             if(consistency_model == '1' or consistency_model == '2'):
                 add_message_to_queue(data.rstrip('\n') + " " + server_id, server_id)
-                   
+            
+            active_command = "insert"
+                
     # If it is an update request, update the key-value pair into the dictionary or broadcast the request, depending on the consistency model extracted from the request
     elif (request[0].lower() == "update"):
         if (len(request) < 4):
@@ -313,7 +333,8 @@ def command_input_handler(data):
             consistency_model = request[3]
             if(consistency_model == '1' or consistency_model == '2'):
                 add_message_to_queue(data.rstrip('\n') + " " + server_id, server_id)       
-        
+            
+            active_command = "update"
         
     # If it is a show-all request, print out all the entries in the dictionary
     elif (request[0].lower() == "show-all"):
@@ -326,13 +347,16 @@ def command_input_handler(data):
         
         search[key] = {}
         
-        # Send the a broadcast requesting information about the key's availability from the other servers
-        add_message_to_queue("search " + key + " " + server_id, server_id)   
-
+        # Send a broadcast requesting information about the key's availability from the other servers
+        add_message_to_queue("search " + key + " " + server_id, server_id)  
+         
+        active_command = "search"
             
     # If it is a delay request, delay the invocation by the specified time
     elif (request[0].lower() == "delay"):
         delay_time = float(request[1])
+        while active_command != None:
+            pass
         time.sleep(delay_time)  
                  
     # If it is a load request, execute command from config_file       
@@ -570,5 +594,5 @@ if __name__ == "__main__":
         thread.start()
     
      
-    while(1):
+    while 1:
         pass
