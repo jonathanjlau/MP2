@@ -40,7 +40,7 @@ def find_empty_id():
     
     
 ''' 
-Thread to process the command Queue. The main function will read from the socket and push to the command queue if it is NOT an ack. If it is Linearizability or Sequentially Consistency, then it will wait until all the acks are received before the next command is popped. Otherwise, it is just a buffer for the commands.
+Thread to process the command Queue. The main function will have already read from the socket and pushed to the command queue if it is NOT an ack. If it is Linearizability or Sequentially Consistency, then it will wait until all the acks are received before the next command is popped. Otherwise, it is just a buffer for the commands.
 
 Possible messages (other than a server broadcast):
     send message receiver_server
