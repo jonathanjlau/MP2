@@ -18,5 +18,5 @@ b: get qwe 2
 c: send welcome a a
 c: delay 1
 c: send hello from c b
-c: delete hello
+c: delete hello 1
 d: delay 1

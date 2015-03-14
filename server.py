@@ -108,7 +108,6 @@ def add_message_to_queue(message, receiver_id, delay = -1):
         delay = random.uniform(0, max_delay_to_destination)   
     command = Command(message, delay)
     queue_list[int(receiver_id)].put(command) 
-           
             
 
 '''
@@ -152,12 +151,10 @@ def coordinator_message_handler(data):
     # If it is a delete message, delete the information associated with that key
     elif (request[0].lower() == "delete"):               
         delete_key(request)  
-        
-        # Send an ACK back to the coordinator server with a delay based on your server_id
+        source_server = request[3]       
+        if source_server == server_id:
+            active_command = None
         add_message_to_queue("ACK " + server_id, server_id)
-        
-        active_command = None
-        
     # If it is a get message, get the information associated with that key according to who's request it was
     elif (request[0].lower() == "get"):
         source_server = request[3]
@@ -166,6 +163,7 @@ def coordinator_message_handler(data):
             if source_server == server_id:
                 print ""
                 get_key(request, consistency_model)
+                active_command = None  
                 prompt()    
                 
             # Send an ACK back to the coordinator server with a delay based on your server_id
@@ -181,11 +179,12 @@ def coordinator_message_handler(data):
         
         if consistency_model == "1" or consistency_model == "2":
             insert_key(request)
-            
+            if source_server == server_id:
+                active_command = None  
             # Send an ACK back to the coordinator server with a delay based on your server_id
             add_message_to_queue("ACK " + server_id, server_id)
         
-        active_command = None
+
         
     # If it is an update message, update the key-value pair into the dictionary according to who's request it was
     elif (request[0].lower() == "update"):
@@ -195,13 +194,12 @@ def coordinator_message_handler(data):
         if consistency_model == "1" or consistency_model == "2":
             if source_server == server_id:
                 update_key(request, True)
+                active_command = None
             else:
                 update_key(request, False)
         
             # Send an ACK back to the coordinator server with a delay based on your server_id
             add_message_to_queue("ACK " + server_id, server_id)
-        
-        active_command = None
         
         
     # If it is a search message, try to find the key and report the result back to the source server
@@ -272,6 +270,9 @@ def command_input_handler(data):
     global key_value_pairs
     global search
     global active_command
+
+    if (len(data) <= 1) :
+        return
     
     request = data.split()
 
@@ -371,8 +372,10 @@ def command_input_handler(data):
     else:    
         coordinator.send(data)
 
-
-
+    # If an there is an active command, wait until that command has completed. Then process the next command from the input. For Linearizability and Sequential Consistency.
+    while active_command != None:
+        pass
+  
 
 
 
@@ -414,7 +417,6 @@ def coordinator_message_receiver() :
                 if not data :
                     print '\nDisconnected from coordinator'
                     sys.exit()
-                    
                 # Let the coordinator input handler handle the coordinator's messages    
                 coordinator_message_handler(data)
 
