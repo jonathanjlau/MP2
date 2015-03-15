@@ -1,5 +1,24 @@
-a: 1
-b: 2
-c: 3
-d: 4
-port: 5000
+delay-a-seq: 1
+delay-b-seq: 2
+delay-c-seq: 3
+delay-d-seq: 4
+delay-a-b: 5
+delay-a-c: 6
+delay-a-d: 7
+delay-b-c: 8
+delay-b-d: 9
+delay-c-d: 10
+
+ip-seq: 127.0.0.1
+ip-a: 127.0.0.2
+ip-b: 127.0.0.3
+ip-c: 127.0.0.4
+ip-d: 127.0.0.5
+
+port-seq: 1024
+port-a: 1025
+port-b: 1026
+port-c: 1027
+port-d: 1028
+
+commands: command_file
