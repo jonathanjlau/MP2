@@ -17,7 +17,7 @@ def make_key_value(string):
 
 def read_key_value_file(filename):
 	'''Read a file containing key value pairs and convert it into a dictionary'''
-	f = open(filename, 'r') = f.read()
+	f = open(filename, 'r')
 	return make_key_value(f.read())
 
 def compress_dict(dictionary):
