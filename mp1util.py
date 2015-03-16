@@ -40,3 +40,4 @@ def extract_message(char_list):
 		return message
 	except ValueError:
 		return None
+

@@ -1,24 +1,25 @@
-delay-a-seq: 1
-delay-b-seq: 2
-delay-c-seq: 3
-delay-d-seq: 4
-delay-a-b: 5
-delay-a-c: 6
-delay-a-d: 7
-delay-b-c: 8
-delay-b-d: 9
-delay-c-d: 10
+delay-A-Seq: 1
+delay-B-Seq: 2
+delay-C-Seq: 3
+delay-D-Seq: 4
+delay-A-B: 5
+delay-A-C: 6
+delay-A-D: 7
+delay-B-C: 8
+delay-B-D: 9
+delay-C-D: 10
 
-ip-seq: 127.0.0.1
-ip-a: 127.0.0.2
-ip-b: 127.0.0.3
-ip-c: 127.0.0.4
-ip-d: 127.0.0.5
+ip-Seq: 127.0.0.1
+ip-A: 127.0.0.2
+ip-B: 127.0.0.3
+ip-C: 127.0.0.4
+ip-D: 127.0.0.5
 
 port-seq: 1024
-port-a: 1025
-port-b: 1026
-port-c: 1027
-port-d: 1028
+port-A: 1025
+port-B: 1026
+port-C: 1027
+port-D: 1028
 
 commands: command_file
+buffer-size: 4096
