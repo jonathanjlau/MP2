@@ -91,7 +91,10 @@ class Channels:
 				message = self.send_queue.get()
 				dest = message['dest']
 				msgstr = util.compress_message(message)
-				self.sockets[dest].sendall(msgstr)
+				if dest in self.sockets:
+					self.sockets[dest].sendall(msgstr)
+				else:
+					print 'No connection to ' + dest
 
 		sys.exit()
 

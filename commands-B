@@ -1,6 +1,6 @@
-send testing_2_seconds a
+send testing_2_seconds A
 delay 2
-send testing_complete a
+send testing_complete A
 insert hello world 1
 delay 5
 get hello 1
