@@ -1,13 +1,13 @@
 delay-A-Seq: 1
-delay-B-Seq: 2
-delay-C-Seq: 3
-delay-D-Seq: 4
-delay-A-B: 5
-delay-A-C: 6
-delay-A-D: 7
-delay-B-C: 8
-delay-B-D: 9
-delay-C-D: 10
+delay-B-Seq: 1
+delay-C-Seq: 1
+delay-D-Seq: 1
+delay-A-B: 1
+delay-A-C: 1
+delay-A-D: 1
+delay-B-C: 1
+delay-B-D: 1
+delay-C-D: 1
 
 ip-Seq: 127.0.0.1
 ip-A: 127.0.0.2

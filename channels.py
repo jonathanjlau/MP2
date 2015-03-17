@@ -90,7 +90,6 @@ class Channels:
 			if not self.send_queue.empty():
 				message = self.send_queue.get()
 				dest = message['dest']
-				message['recv-time'] = message['send-time']
 				msgstr = util.compress_message(message)
 				self.sockets[dest].sendall(msgstr)
 
@@ -100,8 +99,7 @@ class Channels:
 		'''Broadcasts messages in the queue to all servers'''
 		while 1:
 			if not self.recv_queue.empty():
-				message = self.send_queue.get()
-				message['recv-time'] = message['send-time']
+				message = self.recv_queue.get()
 				msgstr = util.compress_message(message)
 				print 'Broadcasting ' + message['command']
 				for sock in self.sockets.values():
