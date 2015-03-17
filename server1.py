@@ -582,7 +582,6 @@ def delay(command):
 		delay = float(command[1])
 		# Marks that the next command should be started after delay time passed since the response of the previous operation
 		next_time = prev_time + delay
-		print next_time
 	except:
 		print 'delay time is not a number'
 
@@ -626,6 +625,8 @@ The send thread continuously checks for messages in the send queue and sends the
 The receive thread continuously reads messages from sockets and delivers them based on receive time, delaying the delivery when necessary
 
 More detail can be found in each thread's description.
+
+To run commands from a file, use cat and pipe
 '''
 if __name__ == "__main__":
 
@@ -655,7 +656,6 @@ if __name__ == "__main__":
 		if expected_replies == 0 and time.time() >= next_time:
 			rd, wr, err = select.select([sys.stdin], [], [], 0)
 			for io in rd:
-				print next_time
 				handle_input(io.readline())
 
 		# Check for received messages
