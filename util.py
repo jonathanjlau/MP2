@@ -24,7 +24,7 @@ def compress_dict(dictionary):
 	'''Compresses a dictionary into a string'''
 	string = ''
 	for key, value in dictionary.iteritems():
-		string += key + ':' + value + "\n"
+		string += key + ':' + str(value) + "\n"
 	return string
 
 def compress_message(message):
@@ -34,9 +34,9 @@ def compress_message(message):
 def extract_message(char_list):
 	'''Extracts a message from character list or return None if the array does not contain a message'''
 	try:
-		delim_pos = char_array.index("\r")
-		message = make_key_value(char_array[0:delim_pos])
-		del char_array[0:delim_pos + 1]
+		delim_pos = char_list.index("\r")
+		message = make_key_value(char_list[0:delim_pos])
+		del char_list[0:delim_pos + 1]
 		return message
 	except ValueError:
 		return None
