@@ -98,13 +98,14 @@ class Channels:
 
 	def broadcast_message(self):
 		'''Broadcasts messages in the queue to all servers'''
-		if not self.recv_queue.empty():
-			message = self.send_queue.get()
-			message['recv-time'] = message['send-time']
-			msgstr = util.compress_message(message)
-			print 'Broadcasting ' + message['command']
-			for sock in self.sockets.values():
-				sock.sendall(msgstr)
+		while 1:
+			if not self.recv_queue.empty():
+				message = self.send_queue.get()
+				message['recv-time'] = message['send-time']
+				msgstr = util.compress_message(message)
+				print 'Broadcasting ' + message['command']
+				for sock in self.sockets.values():
+					sock.sendall(msgstr)
 		
 	def recv_message(self):
 		'''Thread function for receiving messages with delay'''
