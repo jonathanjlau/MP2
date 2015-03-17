@@ -39,6 +39,5 @@ def extract_message(char_list):
 		del char_list[0:delim_pos + 1]
 		return message
 	except ValueError:
-		print 'except'
 		return None
 

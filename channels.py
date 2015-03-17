@@ -1,5 +1,6 @@
 import util
 import Queue
+import random
 import select
 import socket
 import sys
@@ -39,7 +40,7 @@ class Channels:
 				server_sock.listen(1)
 				server_sockets.append(server_sock)
 				name_map[server_sock.fileno()] = other_name
-				self.delays[other_name] = config['delay-' + self.name + '-' + other_name]
+				self.delays[other_name] = float(config['delay-' + self.name + '-' + other_name])
 
 			# Connect to servers with smaller names
 			elif self.name > other_name:
@@ -53,7 +54,7 @@ class Channels:
 					sys.exit()
 				print 'Connected to ' + other_name
 				self.sockets[other_name] = client_sock
-				self.delays[other_name] = config['delay-' + other_name + '-' + self.name]
+				self.delays[other_name] = float(config['delay-' + other_name + '-' + self.name])
 				self.last_recv[other_name] = 0.0
 				self.buffers[other_name] = []
 				self.name_map[client_sock.fileno()] = other_name
@@ -78,7 +79,6 @@ class Channels:
 			pass
 
 		self.bufsize = int(config['buffer-size'])
-		print self.sockets
 
 	def put_message(self, message):
 		'''Add a message to the send queue'''
@@ -93,7 +93,6 @@ class Channels:
 				message['recv-time'] = message['send-time']
 				msgstr = util.compress_message(message)
 				self.sockets[dest].sendall(msgstr)
-				print 'Send' + message['command']
 
 		sys.exit()
 
@@ -121,19 +120,15 @@ class Channels:
 					# Extract as many messages from the received string as possible
 					while 1:
 						msg = util.extract_message(self.buffers[self.sender])
-						print 'after extract'
 						if msg == None:
-							print 'None'
 							break
 						else:
 							# Update delay and receive time for this connection, added the smallest number necessary to distinguish previous max time
-							print 'process message'
-							msg['delay'] = self.delays[sender]
-							msg['recv-time'] = float(msg['recv-time']) + random.uniform(0, self.delays[sender])
-							msg['recv-time'] = max(msg['recv-time'], self.last_recv[sender] + 0.000001)
-							self.last_recv[sender] = msg['recv-time']
-							self.delay_queue.add((msg['recv-time'], msg))
-							print 'Received ' + msg['command']
+							msg['delay'] = self.delays[self.sender]
+							msg['recv-time'] = float(msg['recv-time']) + random.uniform(0, self.delays[self.sender])
+							msg['recv-time'] = max(msg['recv-time'], self.last_recv[self.sender] + 0.000001)
+							self.last_recv[self.sender] = msg['recv-time']
+							self.delay_queue.put((msg['recv-time'], msg))
 			except:
 				break
 
@@ -142,11 +137,11 @@ class Channels:
 				(recv_time, msg) = self.delay_queue.get()
 				cur_time = time.time()
 				if recv_time > cur_time:
-					self.delay_queue.add((recv_time, msg))
+					self.delay_queue.put((recv_time, msg))
 					break
 				else:
 					msg['recv-time'] = cur_time
-					self.recv_queue.add(msg)
+					self.recv_queue.put(msg)
 
 	def get_message(self):
 		'''Returns a message that has been delivered, None if there is no message to deliver'''
