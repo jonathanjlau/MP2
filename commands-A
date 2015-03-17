@@ -1,0 +1,5 @@
+send hello_world b
+delay 2.5
+send I_am_server_a b
+delay 3
+send good_bye_server_b b

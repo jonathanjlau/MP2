@@ -21,5 +21,4 @@ port-B: 1026
 port-C: 1027
 port-D: 1028
 
-commands: command_file
 buffer-size: 4096

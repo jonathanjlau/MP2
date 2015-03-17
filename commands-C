@@ -1,0 +1,4 @@
+send welcome_a a
+delay 1
+send hello_from_c b
+delete hello 1

@@ -1,0 +1,12 @@
+send testing_2_seconds a
+delay 2
+send testing_complete a
+insert hello world 1
+delay 5
+get hello 1
+delay 5
+update hello again 2
+delay 5
+insert qwe rty 2
+delay 5
+get qwe 2
