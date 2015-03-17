@@ -74,7 +74,8 @@ class Channels:
 
 		# Close all server sockets
 		for sock in server_sockets:
-			sock.close()
+			#sock.close()
+			pass
 
 		self.bufsize = int(config['buffer-size'])
 		print self.sockets
@@ -92,6 +93,7 @@ class Channels:
 				message['recv-time'] = message['send-time']
 				msgstr = util.compress_message(message)
 				self.sockets[dest].sendall(msgstr)
+				print 'Send' + message['command']
 
 		sys.exit()
 
@@ -112,25 +114,26 @@ class Channels:
 				# Check whether sockets can be read
 				rd, wr, err = select.select(self.sockets.values(), [], [], 0)
 				for sock in rd:
-					sender = self.name_map[sock.fileno()]
+					self.sender = self.name_map[sock.fileno()]
 					received = sock.recv(self.bufsize)
-					self.buffers[sender].extend(list(received))
+					self.buffers[self.sender].extend(list(received))
 
-				# Extract as many messages from the received string as possible
-				while 1:
-					msg = util.extract_message(self.buffers[sender])
-					if msg == None:
-						break
-					else:
-						print 'extract message'
-						# Update delay and receive time for this connection, added the smallest number necessary to distinguish previous max time
-						msg['delay'] = self.delays[sender]
-						msg['recv-time'] = float(msg['recv-time']) + random.uniform(0, self.delays[sender])
-						msg['recv-time'] = max(msg['recv-time'], self.last_recv[sender] + 0.000001)
-						self.last_recv[sender] = msg['recv-time']
-						self.delay_queue.add((msg['recv-time'], msg))
-						print 'Received ' + msg['command']
-
+					# Extract as many messages from the received string as possible
+					while 1:
+						msg = util.extract_message(self.buffers[self.sender])
+						print 'after extract'
+						if msg == None:
+							print 'None'
+							break
+						else:
+							# Update delay and receive time for this connection, added the smallest number necessary to distinguish previous max time
+							print 'process message'
+							msg['delay'] = self.delays[sender]
+							msg['recv-time'] = float(msg['recv-time']) + random.uniform(0, self.delays[sender])
+							msg['recv-time'] = max(msg['recv-time'], self.last_recv[sender] + 0.000001)
+							self.last_recv[sender] = msg['recv-time']
+							self.delay_queue.add((msg['recv-time'], msg))
+							print 'Received ' + msg['command']
 			except:
 				break
 
