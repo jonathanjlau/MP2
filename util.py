@@ -35,7 +35,7 @@ def extract_message(char_list):
 	'''Extracts a message from character list or return None if the array does not contain a message'''
 	try:
 		delim_pos = char_list.index("\r")
-		message = make_key_value(str(char_list[0:delim_pos]))
+		message = make_key_value(''.join(char_list[0:delim_pos]))
 		del char_list[0:delim_pos + 1]
 		return message
 	except ValueError:
