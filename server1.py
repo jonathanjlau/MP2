@@ -19,6 +19,7 @@ message_handler = {}
 expected_replies = 0
 expected_id = 0
 message_id = 0
+search_result = ''
 
 # Completion time of previous command
 prev_time = time.time()
@@ -31,6 +32,7 @@ def handle_input(string):
 	'''Executes the command in the given string'''
 	command = string.split()
 	global input_handler
+	global prev_time
 
 	# Ignore empty commands
 	if len(command) == 0:
@@ -193,6 +195,7 @@ def send_get(command):
 def recv_get(message):
 	'''Responds to the get message'''
 	global expected_replies
+	global prev_time
 	model = message['model']
 	key = message['key']
 
@@ -226,6 +229,7 @@ def recv_get_ack(message):
 	'''Respond to ack of get message for eventual consistency'''
 	global expected_replies
 	global expected_id
+	global prev_time
 	recv_id = int(message['id'])
 	key = message['key']
 	timestamp = float(message['timestamp'])
@@ -316,7 +320,6 @@ def send_insert(command):
 
 def recv_insert(message):
 	'''Respond to the insert message'''
-
 	# If the key_value_store already contains the key, handle this like an update
 	key = message['key']
 	if key in key_value_store:
@@ -324,6 +327,7 @@ def recv_insert(message):
 		return
 
 	global expected_replies
+	global prev_time
 	model = message['model']
 	value = message['value']
 	timestamp = float(message['send-time'])
@@ -350,6 +354,7 @@ def recv_insert_ack(message):
 	'''Respond to ack of insert message for eventual consistency'''
 	global expected_replies
 	global expected_id
+	global prev_time
 	recv_id = int(message['id'])
 	key = message['key']
 
@@ -418,6 +423,7 @@ def recv_update(message):
 	'''Respond to the update message'''
 
 	global expected_replies
+	global prev_time
 	key = message['key']
 	model = message['model']
 	value = message['value']
@@ -459,6 +465,7 @@ def recv_update_ack(message):
 	'''Respond to ack of update message for eventual consistency'''
 	global expected_replies
 	global expected_id
+	global prev_time
 	recv_id = int(message['id'])
 	sendtime = float(message['send-time'])
 	timestamp = float(message['timestamp'])
@@ -479,7 +486,109 @@ def recv_update_ack(message):
 
 	return
 
+def showall(command):
+	'''Displays all key value pairs stored on this server'''
+	for key, entry in key_value_store.iteritems():
+		print key + ': ' + entry[0]
+
+def send_search(command):
+	'''Handles a insert command'''
+	if (len(command) != 2):
+		print "SEARCH usage: search key"
+		return
+
+	global expected_replies
+	global expected_id
+	global message_id
+	global search_result
 	
+	# Prepares a search message to send
+	message = {}
+	message['command'] = command[0]
+	message['key'] = command[1]
+	message['send-time'] = time.time()
+	# This makes the message delivered immediately even when delay is added
+	message['recv-time'] = 0
+	message['sender'] = channels.name
+	message['id'] = message_id
+	message_id += 1
+	
+	# Mark that 3 acks are expected
+	expected_replies = 3
+	expected_id = message['id']
+	search_result = ''
+
+	for server in ['A', 'B', 'C', 'D']:
+		if server != channels.name:
+			msg = copy.copy(message)
+			msg['dest'] = server
+			channels.put_message(msg)
+
+def recv_search(message):
+	'''Responds with whether the server contains the key'''
+	key = message['key']
+	message['command'] = 'search-ack'
+	message['recv-time'] = 0
+	message['dest'] = message['sender']
+
+	# Marks the message if the key is found in this server
+	if key in key_value_store:
+		message['sender'] = channels.name
+
+	channels.put_message(message)
+
+def recv_search_ack(message):
+	'''Checks acks to search messages and displays the list of servers with the key after all responses are received'''
+	global expected_replies
+	global expected_id
+	global search_result
+	global prev_time
+
+	recv_id = int(message['id'])
+	key = message['key']
+	
+	# Check whether the server is expecting a reply to complete a command and the expected original send time of the message is correct
+	if expected_replies > 0 and expected_id == recv_id:
+		expected_replies -= 1
+		sender = message['sender']
+
+		# Checks flag of whether key was found in responding server
+		if sender != channels.name:
+			search_result += sender + ','
+
+		# Received all replies
+		if expected_replies == 0:
+			if key in key_value_store:
+				search_result += channels.name
+
+			if len(search_result) > 0:
+				print 'Key ' + key + ' is found in servers ' + search_result
+			else:
+				print 'Key ' + key + ' is not found in any server'
+			prev_time = time.time()
+
+	return
+
+
+def delay(command):
+	'''Sets the time when the next command can be input'''
+	if (len(command) != 2):
+		print "DELAY usage: delay T"
+		return
+
+	global next_time
+	global prev_time
+	try:
+		delay = float(command[1])
+		# Marks that the next command should be started after delay time passed since the response of the previous operation
+		next_time = prev_time + delay
+		print next_time
+	except:
+		print 'delay time is not a number'
+
+	return
+
+
 def setup_input_handler():
 	'''Sets up a dictionary to execute input commands'''
 	global input_handler
@@ -488,6 +597,9 @@ def setup_input_handler():
 	input_handler['get'] = send_get
 	input_handler['insert'] = send_insert
 	input_handler['update'] = send_update
+	input_handler['show-all'] = showall
+	input_handler['search'] = send_search
+	input_handler['delay'] = delay
 
 def setup_message_handler():
 	'''Sets up a dictionary to execute received messages'''
@@ -500,6 +612,8 @@ def setup_message_handler():
 	message_handler['insert-ack'] = recv_insert_ack
 	message_handler['update'] = recv_update
 	message_handler['update-ack'] = recv_update_ack
+	message_handler['search'] = recv_search
+	message_handler['search-ack'] = recv_search_ack
 
 '''
 Main function for the individual servers.
@@ -541,6 +655,7 @@ if __name__ == "__main__":
 		if expected_replies == 0 and time.time() >= next_time:
 			rd, wr, err = select.select([sys.stdin], [], [], 0)
 			for io in rd:
+				print next_time
 				handle_input(io.readline())
 
 		# Check for received messages
