@@ -7,63 +7,61 @@ import sys
 import threading
 import time
 
+sock_queue = []
+msg_count = 0
+
 class Rcv_channel:
 	'''Handles channels from a server to other servers'''
 
 	def __init__(self, channel_id, port):
 		'''Creates an uninitialized set of channels from a server'''
-		self.channel = channel_id
+		self.id = channel_id
 		self.port = port 		
-		self.sockets = 0
+		self.sockets = []
 		self.close = False
+	        self.accepted = False
 
 	def make_connections(self):
-		'''Create connections to other servers using given configurations'''
-
-		# Create sockets with other servers. Use IP of server making connection and port of server accepting connection
-
-		server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		server_sock.bind(("0.0.0.0", self.port))
-		server_sock.listen(1)
-		self.sockets =server_sock
-		print "rcv socket created - port = ", self.port
-
+               return 
+		
 		
 	def get_message(self):
-		conn, addr = self.sockets.accept()
-		print 'connected by ', addr
+                global sock_queue
+                #print 'ID =', self.id, 'wait for get message on port', self.port
+                #print 'wait for sokck,empty, port', sock_queue[self.port].empty(), self.port
+		while sock_queue[self.port].empty():
+                   pass
+		rcv_data = sock_queue[self.port].get()
+                print 'ID =', self.id, 'get message on port', self.port, ' msg = ', rcv_data
+                return rcv_data
 
-		data = conn.recv(4096)
-		if not data:	
-		    print '\nDisconnected from process'
-		    sys.exit()
-		print 'msg get = ', data    
-		return data	    
-	
+	def queue_init(self):
+            global sock_queue
+	    for i in range(0, 257):
+		    sock_queue.append(Queue.Queue())
+
 class Send_channel:
 	'''Handles channels from a server to other servers'''
-
 	def __init__(self, channel_id, port):
 		'''Creates an uninitialized set of channels from a server'''
-		self.channel = channel_id
+		self.id = channel_id
 		self.port = port 		
 		self.sockets = 0
 		self.close = False
+	        #print 'setup Send_channel: id = ', self.id, 'port = ', self.port
 
 	def make_connections(self):
-		client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		client_sock.settimeout(2)
-		try :
-			client_sock.connect(("", self.port))
-		except :
-			print 'Send channel - Unable to connect to ', self.port
-			sys.exit()
-
-		print "init Send_channel from id ", self.channel, "to port ", self.port
-                self.sockets = client_sock
-	
+            return
+		
 	def send_message(self, data):
-		print "send ", data
-		self.sockets.send(data)
+            global sock_queue
+            global msg_count
+            msg_count = msg_count + 1
+            print 'send_message from ', self.id, 'to', self.port, ': data = ', data
+   	    sock_queue[self.port].put(data)
+
+	def get_msg_count(self):
+            return msg_count
+
+
 	
