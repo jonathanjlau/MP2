@@ -1,0 +1,15 @@
+join 4
+join 10
+join 89
+join 140
+join 212
+cnt 
+find 4 1
+find 140 210
+find 212 122
+find 89 122
+find 89 4
+find 0 126
+show all
+cnt
+quit
