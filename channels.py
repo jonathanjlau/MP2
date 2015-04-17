@@ -29,12 +29,9 @@ class Rcv_channel:
 		
 	def get_message(self):
                 global sock_queue
-                #if DEBUG: print 'ID =', self.id, 'wait for get message on port', self.port
-                #if DEBUG: print 'wait for sokck,empty, port', sock_queue[self.port].empty(), self.port
 		while sock_queue[self.port].empty():
                    pass
 		rcv_data = sock_queue[self.port].get()
-                if DEBUG: print 'ID =', self.id, 'get message on port', self.port, ' msg = ', rcv_data
                 return rcv_data
 
 	def queue_init(self):
@@ -50,7 +47,6 @@ class Send_channel:
 		self.port = port 		
 		self.sockets = 0
 		self.close = False
-	        #if DEBUG: print 'setup Send_channel: id = ', self.id, 'port = ', self.port
 
 	def make_connections(self):
             return
@@ -62,11 +58,14 @@ class Send_channel:
             msg_count = msg_count + 1
             command = data.split()
 
-            if DEBUG: print 'send_message from ', self.id, 'to', self.port, ': data = ', data
+            if DEBUG: print 'send from process', self.id, 'to process', self.port, ': message = ', data
    	    sock_queue[self.port].put(data)
 
 	def get_msg_count(self):
-	    return msg_count
+            global msg_count
+	    count = msg_count
+	    msg_count = 0
+	    return count
 
 
 
