@@ -1,4 +1,0 @@
-send welcome_a A
-delay 1
-send hello_from_c B
-delete hello 1

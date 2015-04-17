@@ -1,5 +1,0 @@
-send hello_world B
-delay 2.5
-send I_am_server_a B
-delay 3
-send good_bye_server_b B
