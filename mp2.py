@@ -56,6 +56,13 @@ def key_ring_between(start, end, check) :
         rtn = (check >= start or check < end)
     return rtn
 
+def check_valid_input_process_or_key(check_id) :
+    ''' Checks if the given input for the process id is between 0 and 255.'''
+    if check_id < 0 or check_id > 255  :
+        return False;
+    else :
+        return True;
+
 
 def setup_input_handler():   
    ''' Sets up a dictionary to execute input commands''' 
@@ -100,6 +107,14 @@ def input_join_process(command, process_vld, rcv_channel, send_channel):
          
         new_process = int(command[1])
         
+        if not check_valid_input_process_or_key(new_process):
+            print "Invalid process number"
+            return
+
+        if process_vld[new_process]: 
+            print "Process", new_process, "has already joined."  
+            return
+
         # start a new_process
         process_start(new_process, base_port+new_process, send_channel)
         
@@ -129,6 +144,9 @@ def input_leave_process(command, process_vld, rcv_channel, send_channel):
         return
 		
     del_process = int(command[1])
+    if not check_valid_input_process_or_key(del_process) or del_process == 0:
+        print "Invalid process number"
+        return
 
     if process_vld[del_process]:
 
@@ -161,10 +179,18 @@ def input_show_key(command, process_vld, rcv_channel, send_channel):
                     send_channel[i].send_message('show')
                     wait_for_ack(rcv_channel);         
         else:
-            process = int(command[1])   
+            process = int(command[1]) 
+
+            if not check_valid_input_process_or_key(process):
+                print "Invalid process number"
+                return
+  
             if process_vld[process] :
                 send_channel[process].send_message('show')
-                wait_for_ack(rcv_channel);         
+                wait_for_ack(rcv_channel);  
+            
+            else: 
+                print "Process", process, "not found."  
 
 # function to handle input command from stdin - 'find P K'
 # 1. send a 'find K " message to  process P  
@@ -176,9 +202,21 @@ def input_find_key(command, process_vld, rcv_channel, send_channel):
 		return
 	message = 'find ' + command[2]
         process_id = int(command[1])
+
+        if not check_valid_input_process_or_key(int(command[2])):
+            print "Invalid key number"
+            return
+
+        if not check_valid_input_process_or_key(process_id):
+            print "Invalid process number"
+            return
+
         if process_vld[process_id] :
             send_channel[process_id].send_message(message)
-            wait_for_ack(rcv_channel)         
+            wait_for_ack(rcv_channel)  
+
+        else: 
+            print "Process", process_id, "not found."         
 
 # function to handle input command from stdin - 'cnt'
 # 1. display the message count global variable
