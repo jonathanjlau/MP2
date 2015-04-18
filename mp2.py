@@ -68,6 +68,7 @@ def setup_input_handler():
 	input_handler['leave'] = input_leave_process
 	input_handler['find'] = input_find_key
 	input_handler['show'] = input_show_key
+	input_handler['show-all'] = input_show_all
 	input_handler['cnt'] = input_show_count
 	input_handler['quit'] = input_quit
 
@@ -168,26 +169,29 @@ def input_show_key(command, process_vld, rcv_channel, send_channel):
 	'''Handles the display of a existing process'''
 
 	if len(command) != 2:
-		print >> sys.stderr, 'Usage: show process_id(0-255, all)'
+		print >> sys.stderr, 'Usage: show process_id(0-255)'
 		return
-	if command[1] == 'all' :
-		for i in range (256) :
-			if process_vld[i] :
-				send_channel[i].send_message('show')
-				wait_for_ack(rcv_channel);
+	process = int(command[1])
+
+	if not check_valid_input_process_or_key(process):
+		print >> sys.stderr, "Invalid process number"
+		return
+
+	if process_vld[process] :
+		send_channel[process].send_message('show')
+		wait_for_ack(rcv_channel);
+
 	else:
-		process = int(command[1])
+		print >> sys.stderr, "Process", process, "not found."
 
-		if not check_valid_input_process_or_key(process):
-			print >> sys.stderr, "Invalid process number"
-			return
-
-		if process_vld[process] :
-			send_channel[process].send_message('show')
+# function to handle input command from stdin - 'show-all'
+# 1. send a 'show" message to all processes
+def input_show_all(command, process_vld, rcv_channel, send_channel):
+	'''Handles the display of a existing process'''
+	for i in range (256) :
+		if process_vld[i] :
+			send_channel[i].send_message('show')
 			wait_for_ack(rcv_channel);
-
-		else:
-			print >> sys.stderr, "Process", process, "not found."
 
 # function to handle input command from stdin - 'find P K'
 # 1. send a 'find K " message to  process P
@@ -530,11 +534,8 @@ if __name__ == "__main__":
 		if sys.argv[i] == '-g' :
 			i += 1
 			show_tgt = open(sys.argv[i], 'w+')
-		elif sys.argv[i] == '-p' :
-			i += 1
-			base_port = int(sys.argv[i])
 		else :
-			print >> sys.stderr, 'Usage: python server.py -g <filename> -p <port>'
+			print >> sys.stderr, 'Usage: python server.py -g <filename>'
 			sys.exit()
 		i += 1
 
