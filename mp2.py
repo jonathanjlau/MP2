@@ -7,7 +7,6 @@ import threading
 # Global variables
 input_handler = {}
 message_handler = {}
-base_port = 0
 show_tgt = sys.stdout
 
 
@@ -114,7 +113,7 @@ def input_join_process(command, process_vld, rcv_channel, send_channel):
 		return
 
 	# start a new_process
-	process_start(new_process, base_port+new_process, send_channel)
+	process_start(new_process, new_process, send_channel)
 
 	# inform the new process about which old processes are valid
 	message = 'join_process' + vld_array_string(process_vld)
@@ -244,7 +243,7 @@ def process_start(process_id, port, send_channel):
 	# setup send channel from coordinator to the new process
 	if DEBUG:
 		print >> sys.stderr, "coordinator SETUP Send_channel to process 0"
-	send_channel[process_id] = channels.Send_channel(COORDINATOR, base_port + process_id)
+	send_channel[process_id] = channels.Send_channel(COORDINATOR, process_id)
 
 
 
@@ -361,7 +360,7 @@ def msg_join_process(command, my_id, ft_table, key_vld, process_vld, rcv_channel
 		# setup new send_channel from my_process to new_process
 		if DEBUG:
 			print >> sys.stderr, 'SETUP send channel from', my_id, 'to' , new_process
-		send_channel[new_process] = channels.Send_channel(my_id, base_port + new_process)
+		send_channel[new_process] = channels.Send_channel(my_id, new_process)
 
 	ft_table_update(process_vld, my_id, ft_table)
 
@@ -428,12 +427,10 @@ def msg_find_key(command, my_id, ft_table, key_vld, process_vld, rcv_channel, se
 		send_channel[COORDINATOR].send_message('ack')
 	else :
 		i = 0
+		while not key_ring_between(ft_table[i].interval, ft_table[(i+1) % 8].interval, key_id) :
+			i = i + 1
 
-
-	while not key_ring_between(ft_table[i].interval, ft_table[(i+1) % 8].interval, key_id) :
-		i = i + 1
-
-	send_channel[ft_table[i].succ].send_message('find ' + command[1])
+		send_channel[ft_table[i].succ].send_message('find ' + command[1])
 
 
 def msg_show_key(command, my_id, ft_table, key_vld, process_vld, rcv_channel, send_channel):
@@ -490,7 +487,7 @@ def process(process_id, port_id):
 	send_channel = [0]*257
 
 	# setup send_channel to coordinator
-	send_channel[COORDINATOR] = channels.Send_channel(my_process_id, base_port + COORDINATOR)
+	send_channel[COORDINATOR] = channels.Send_channel(my_process_id, COORDINATOR)
 
 	setup_message_handler()
 
@@ -523,8 +520,7 @@ To run commands from a file, use cat and pipe
 '''
 if __name__ == "__main__":
 
-	# Check if the user enters the output file
-	base_port = 0
+	# Check whether the user enters the output file
 	i = 1
 	while i < len(sys.argv) :
 		if sys.argv[i] == '-g' :
@@ -543,11 +539,11 @@ if __name__ == "__main__":
 	# start a receive socket - all processes will send to the coordinator thru this socket
 	if DEBUG:
 		print >> sys.stderr, "Coordinatior setup rcv channel"
-	rcv_channel = channels.Rcv_channel(COORDINATOR, base_port+COORDINATOR)
+	rcv_channel = channels.Rcv_channel(COORDINATOR, 0COORDINATOR)
 	rcv_channel.queue_init()
 
 	# start the process thread with id = 0 and rcv_channel = port + 1
-	process_start(0, base_port, send_channel)
+	process_start(0, 0, send_channel)
 
 	setup_input_handler()
 
