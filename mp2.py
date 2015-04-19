@@ -539,7 +539,7 @@ if __name__ == "__main__":
 	# start a receive socket - all processes will send to the coordinator thru this socket
 	if DEBUG:
 		print >> sys.stderr, "Coordinatior setup rcv channel"
-	rcv_channel = channels.Rcv_channel(COORDINATOR, 0COORDINATOR)
+	rcv_channel = channels.Rcv_channel(COORDINATOR, COORDINATOR)
 	rcv_channel.queue_init()
 
 	# start the process thread with id = 0 and rcv_channel = port + 1
