@@ -74,9 +74,9 @@ class Channels:
 		'''Sends a message to the channel with the given id'''
 		self.queues[channelid].put(msg, True)
 
-	def recv_msg(self, channelid):
+	def recv_msg(self, channelid, block):
 		'''Receives a message from the channel with the given id'''
 		try:
-			return self.queues[channelid].get()
+			return self.queues[channelid].get(block)
 		except Queue.Empty:
 			return ''

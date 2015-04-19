@@ -10,6 +10,11 @@ find 212 122
 find 89 122
 find 89 4
 find 0 126
-show all
+show-all
 cnt
+leave 4
+leave 10
+leave 89
+leave 140
+leave 212
 quit

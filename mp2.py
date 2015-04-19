@@ -7,7 +7,6 @@ import threading
 # Global variables
 input_handler = {}
 message_handler = {}
-show_tgt = sys.stdout
 
 
 # ID = 256 for the coordinator, ID = 0 to 255 for the process threads
@@ -18,14 +17,16 @@ DEBUG1 = True
 DEBUG1 = False
 import channels
 
+
 ###############################################################
 # Functions for the coordinator thread
 ###############################################################
 
 
-def wait_for_ack(rcv_channel):
+def wait_for_ack():
 	''' Waits for an ack from a processor before moving to the next command '''
-	msg = rcv_channel.get_message()
+	global chnl
+	msg = chnl.recv_msg(256, True)
 
 	if msg != 'ack':
 		print >> sys.stderr, 'Error in receivng message - not ACK'
@@ -55,9 +56,9 @@ def key_ring_between(start, end, check) :
 def check_valid_input_process_or_key(check_id) :
 	''' Checks if the given input for the process id is between 0 and 255.'''
 	if check_id < 0 or check_id > 255  :
-		return False;
+		return False
 	else :
-		return True;
+		return True
 
 
 def setup_input_handler():
@@ -72,7 +73,7 @@ def setup_input_handler():
 	input_handler['quit'] = input_quit
 
 
-def handle_input(input_string, process_vld, rcv_channel, send_channel):
+def handle_input(input_string, process_vld):
 	'''Executes the command in the given string from stdin'''
 	command = input_string.split()
 
@@ -86,7 +87,7 @@ def handle_input(input_string, process_vld, rcv_channel, send_channel):
 		return
 
 	# Use a dictionary as a switch case to call the function corresponding to the given command
-	input_handler[command[0]](command, process_vld, rcv_channel, send_channel)
+	input_handler[command[0]](command, process_vld)
 	return
 
 
@@ -94,8 +95,9 @@ def handle_input(input_string, process_vld, rcv_channel, send_channel):
 # 1. start a new thread
 # 2. inform the existing processes to add the new process
 # 3. update the process_vld array
-def input_join_process(command, process_vld, rcv_channel, send_channel):
+def input_join_process(command, process_vld):
 	'''Handles the addition of a new process'''
+	global chnl
 
 	# check that the command has the right number of parameters
 	if len(command) != 2:
@@ -113,27 +115,28 @@ def input_join_process(command, process_vld, rcv_channel, send_channel):
 		return
 
 	# start a new_process
-	process_start(new_process, new_process, send_channel)
+	process_start(new_process)
 
 	# inform the new process about which old processes are valid
 	message = 'join_process' + vld_array_string(process_vld)
 
-	send_channel[new_process].send_message(message)
-	wait_for_ack(rcv_channel);
+	chnl.send_msg(new_process, message)
+	wait_for_ack()
 
 	# let all other existing process know that a new process is added
 	for i in range(256):
 		if process_vld[i] :
-			send_channel[i].send_message(('join_process ' + command[1]))
-			wait_for_ack(rcv_channel);
+			chnl.send_msg(i, 'join_process ' + command[1])
+			wait_for_ack()
 
 	process_vld[new_process] = 1
 
 # function to handle input command from stdin - 'leave'
 # 1. send a message about the departure to all the existing processors
 # 2. update process_vld array
-def input_leave_process(command, process_vld, rcv_channel, send_channel):
+def input_leave_process(command, process_vld):
 	'''Handles the removal of a existing process'''
+	global chnl
 
 	# Check that the command has the right number of parameters
 	if len(command) != 2:
@@ -152,8 +155,8 @@ def input_leave_process(command, process_vld, rcv_channel, send_channel):
 		# let all the existing valid processes know that we are deleting this process
 		for i in range(0, 256):
 			if process_vld[i] :
-				send_channel[i].send_message(message)
-				wait_for_ack(rcv_channel);
+				chnl.send_msg(i, message)
+				wait_for_ack()
 
 		process_vld[del_process] = 0
 
@@ -164,8 +167,9 @@ def input_leave_process(command, process_vld, rcv_channel, send_channel):
 
 # function to handle input command from stdin - 'show'
 # 1. send a 'show" message to the destination process(es)
-def input_show_key(command, process_vld, rcv_channel, send_channel):
+def input_show_key(command, process_vld):
 	'''Handles the display of a existing process'''
+	global chnl
 
 	if len(command) != 2:
 		print >> sys.stderr, 'Usage: show process_id(0-255)'
@@ -177,26 +181,27 @@ def input_show_key(command, process_vld, rcv_channel, send_channel):
 		return
 
 	if process_vld[process] :
-		send_channel[process].send_message('show')
-		wait_for_ack(rcv_channel);
+		chnl.send_msg(process, 'show')
+		wait_for_ack()
 
 	else:
 		print >> sys.stderr, "Process", process, "not found."
 
 # function to handle input command from stdin - 'show-all'
 # 1. send a 'show" message to all processes
-def input_show_all(command, process_vld, rcv_channel, send_channel):
+def input_show_all(command, process_vld):
 	'''Handles the display of a existing process'''
+	global chnl
 	for i in range (256) :
 		if process_vld[i] :
-			send_channel[i].send_message('show')
-			wait_for_ack(rcv_channel);
+			chnl.send_msg(i, 'show')
+			wait_for_ack()
 
 # function to handle input command from stdin - 'find P K'
 # 1. send a 'find K " message to  process P
-def input_find_key(command, process_vld, rcv_channel, send_channel):
+def input_find_key(command, process_vld):
 	'''Handles the find command of a process'''
-
+	global chnl
 	if len(command) != 3:
 		print >> sys.stderr, 'Usage: find processID key'
 		return
@@ -212,38 +217,41 @@ def input_find_key(command, process_vld, rcv_channel, send_channel):
 		return
 
 	if process_vld[process_id] :
-		send_channel[process_id].send_message(message)
-		wait_for_ack(rcv_channel)
+		chnl.send_msg(process_id, message)
+		wait_for_ack()
 
 	else:
 		print >> sys.stderr, "Process", process_id, "not found."
 
 # function to handle input command from stdin - 'cnt'
 # 1. display the message count global variable
-def input_show_count(command, process_vld, rcv_channel, send_channel):
+def input_show_count(command, process_vld):
 	'''Displays the the total message count so far'''
-	message_count = send_channel[0].get_msg_count()
-	print >> sys.stderr, ''
-	print >> sys.stderr, 'message count = ', message_count
+#	message_count = send_channel[0].get_msg_count()
+#	print >> sys.stderr, ''
+#	print >> sys.stderr, 'message count = ', message_count
+	print >> sys.stderr, 'message count'
 
 # function to handle input command from stdin - 'quit'
-def input_quit(command, process_vld, rcv_channel, send_channel):
+def input_quit(command, process_vld):
 	'''Exits the program'''
+	global chnl
 	for i in range(256):
 		if process_vld[i] :
-			send_channel[i].send_message('quit')
+			chnl.send_msg(i, 'quit')
 	sys.exit()
 
 
 # function to start a new process thread and set up a send_channel from coordinator to the new process
-def process_start(process_id, port, send_channel):
+def process_start(process_id):
 	'''Function to start the process threads'''
-	process_thread = threading.Thread(target=process, args=(process_id, port))
-	process_thread.start()
+	global chnl
 	# setup send channel from coordinator to the new process
 	if DEBUG:
 		print >> sys.stderr, "coordinator SETUP Send_channel to process 0"
-	send_channel[process_id] = channels.Send_channel(COORDINATOR, process_id)
+	chnl.add_channel(process_id)
+	process_thread = threading.Thread(target=process, args=[process_id])
+	process_thread.start()
 
 
 
@@ -324,7 +332,7 @@ def setup_message_handler():
 	message_handler['find'] = msg_find_key
 	message_handler['add_key'] = msg_add_key
 
-def handle_message(message, my_id, ft_table, key_vld, process_vld, rcv_channel, send_channel):
+def handle_message(message, my_id, ft_table, key_vld, process_vld):
 	global message_handler
 	if DEBUG:
 		print >> sys.stderr, 'process id', my_id, ' handle_message = ', message
@@ -338,7 +346,7 @@ def handle_message(message, my_id, ft_table, key_vld, process_vld, rcv_channel, 
 		return
 
 	# Use a dictionary as a switch case to call the function corresponding to the given message
-	message_handler[command[0]](command, my_id, ft_table, key_vld, process_vld, rcv_channel, send_channel)
+	message_handler[command[0]](command, my_id, ft_table, key_vld, process_vld)
 	return
 
 ##################################################################
@@ -346,13 +354,14 @@ def handle_message(message, my_id, ft_table, key_vld, process_vld, rcv_channel, 
 ##################################################################
 
 
-def msg_join_process(command, my_id, ft_table, key_vld, process_vld, rcv_channel, send_channel):
+def msg_join_process(command, my_id, ft_table, key_vld, process_vld):
 	'''
 	# Coordinator's broadcast when a new process joins.
 	# 1. update ft_table, process_vld
 	# 2. setup send channel to new process
 	# 3. transfer key storage to new process if needed
 	'''
+	global chnl
 	predecessor = find_predecessor(process_vld, my_id)
 	for i in range(1,len(command)) :
 		new_process = int(command[i])
@@ -360,7 +369,6 @@ def msg_join_process(command, my_id, ft_table, key_vld, process_vld, rcv_channel
 		# setup new send_channel from my_process to new_process
 		if DEBUG:
 			print >> sys.stderr, 'SETUP send channel from', my_id, 'to' , new_process
-		send_channel[new_process] = channels.Send_channel(my_id, new_process)
 
 	ft_table_update(process_vld, my_id, ft_table)
 
@@ -377,16 +385,17 @@ def msg_join_process(command, my_id, ft_table, key_vld, process_vld, rcv_channel
 	if len(message) > 0 :
 		message = 'add_key' + message
 		new_process = int(command[1])
-		send_channel[new_process].send_message(message)
+		chnl.send_msg(new_process, message)
 	else:
-		send_channel[COORDINATOR].send_message('ack')
+		chnl.send_msg(COORDINATOR, 'ack')
 
-def msg_leave_process(command, my_id, ft_table, key_vld, process_vld, rcv_channel, send_channel):
+def msg_leave_process(command, my_id, ft_table, key_vld, process_vld):
 	'''
 	# Coordinator's broadcast when a process is deleted.
 	# 1. update ft_table, process_vld
 	# 2. if deleting my process, transfer key storage to new process if needed
 	'''
+	global chnl
 	del_process = int(command[1])
 	if del_process == my_id :
 		print >> sys.stderr, "Process thread has exited, id =", my_id
@@ -395,47 +404,47 @@ def msg_leave_process(command, my_id, ft_table, key_vld, process_vld, rcv_channe
 		key_vld_string = vld_array_string(key_vld)
 		if key_vld_string != '' :
 			message = 'add_key' + key_vld_string
-			send_channel[ft_table[0].succ].send_message(message)
-		send_channel[COORDINATOR].send_message('ack')
+			chnl.send_msg(ft_table[0].succ, message)
+		chnl.send_msg(COORDINATOR, 'ack')
 		sys.exit()
 	else:
 		process_vld[del_process] = 0
 		ft_table_update(process_vld, my_id, ft_table)
-		send_channel[COORDINATOR].send_message('ack')
+		chnl.send_msg(COORDINATOR, 'ack')
 
 
-def msg_add_key(command, my_id, ft_table, key_vld, process_vld, rcv_channel, send_channel):
+def msg_add_key(command, my_id, ft_table, key_vld, process_vld):
 	'''
 	# Add message from the coordinator (only at initialization) or other process to transfer key storage
 	# 1. update key_valid array
 	'''
+	global chnl
 	for i in range(1, len(command)):
-		key_vld[int(command[i])] = 1;
+		key_vld[int(command[i])] = 1
 
-	send_channel[COORDINATOR].send_message('ack')
+	chnl.send_msg(COORDINATOR, 'ack')
 
 
-def msg_find_key(command, my_id, ft_table, key_vld, process_vld, rcv_channel, send_channel):
+def msg_find_key(command, my_id, ft_table, key_vld, process_vld):
 	'''
 	# Find message from the coordinator or other process
 	# 1. return key if stored locally, else send it to the next process according to ft_table
 	'''
-
+	global chnl
 	key_id = int(command[1])
 	if key_vld[key_id] :
 		print >> sys.stderr, '\nProcess', my_id, ' has the key:', key_id, "\n"
-		send_channel[COORDINATOR].send_message('ack')
+		chnl.send_msg(COORDINATOR, 'ack')
 	else :
 		i = 0
 		while not key_ring_between(ft_table[i].interval, ft_table[(i+1) % 8].interval, key_id) :
 			i = i + 1
+		chnl.send_msg(ft_table[i].succ, 'find ' + command[1])
 
-		send_channel[ft_table[i].succ].send_message('find ' + command[1])
 
-
-def msg_show_key(command, my_id, ft_table, key_vld, process_vld, rcv_channel, send_channel):
+def msg_show_key(command, my_id, ft_table, key_vld, process_vld):
 	'''Displays process ID and keys stored'''
-	global show_tgt
+	global chnl
 	if DEBUG1:
 		print >> sys.stderr, ''
 	if DEBUG1:
@@ -450,23 +459,20 @@ def msg_show_key(command, my_id, ft_table, key_vld, process_vld, rcv_channel, se
 	if DEBUG1:
 		print >> sys.stderr, ''
 
-	show_tgt.write(str(my_id))
-	show_tgt.write(vld_array_string(key_vld))
-	show_tgt.write('\n')
+	print str(my_id) + vld_array_string(key_vld)
 
-	send_channel[COORDINATOR].send_message('ack')
+	chnl.send_msg(COORDINATOR, 'ack')
 
 ##################################################################
 # Process thread startup
 ##################################################################
 
-def process(process_id, port_id):
+def process(process_id):
 	'''Thread to represent a process/node.'''
 	my_process_id = process_id
 
 	# start a receive channel
 	print >> sys.stderr, 'Process thread started, id =', my_process_id
-	rcv_channel = channels.Rcv_channel(process_id, port_id)
 
 	# initailize ft_table, process_vld, key_vld
 	ft_table = []
@@ -484,18 +490,15 @@ def process(process_id, port_id):
 
 	process_vld[my_process_id] = 1
 
-	send_channel = [0]*257
-
 	# setup send_channel to coordinator
-	send_channel[COORDINATOR] = channels.Send_channel(my_process_id, COORDINATOR)
 
 	setup_message_handler()
 
 	# done with the initialization - check for received messages
 	while 1:
-		msg = rcv_channel.get_message()
-		if msg is not None:
-			handle_message(msg, my_process_id, ft_table, key_vld, process_vld, rcv_channel, send_channel)
+		msg = chnl.recv_msg(process_id, False)
+		if msg != '':
+			handle_message(msg, my_process_id, ft_table, key_vld, process_vld)
 
 
 
@@ -521,29 +524,25 @@ To run commands from a file, use cat and pipe
 if __name__ == "__main__":
 
 	# Check whether the user enters the output file
-	i = 1
-	while i < len(sys.argv) :
-		if sys.argv[i] == '-g' :
-			i += 1
-			show_tgt = open(sys.argv[i], 'w+')
-		else :
-			print >> sys.stderr, 'Usage: python server.py -g <filename>'
-			sys.exit()
-		i += 1
+	if len(sys.argv) == 3:
+		# Redirect stdout to an output file
+		sys.stdout = open(sys.argv[2], 'w+')
+	elif len(sys.argv) != 1:
+		print >> sys.stderr, 'Usage: python mp2.py -g <filename>'
 
 	# initialize the array to all 0s
-	send_channel = [0]*256
 	process_vld = [0]*256
-
 
 	# start a receive socket - all processes will send to the coordinator thru this socket
 	if DEBUG:
 		print >> sys.stderr, "Coordinatior setup rcv channel"
-	rcv_channel = channels.Rcv_channel(COORDINATOR, COORDINATOR)
-	rcv_channel.queue_init()
+
+	# Creates the set of channels and add a channel for the coordinator
+	chnl = channels.Channels()
+	chnl.add_channel(256)
 
 	# start the process thread with id = 0 and rcv_channel = port + 1
-	process_start(0, 0, send_channel)
+	process_start(0)
 
 	setup_input_handler()
 
@@ -552,13 +551,12 @@ if __name__ == "__main__":
 	for i in range(256):
 		message = message + ' ' + str(i)
 
-
-	send_channel[0].send_message(message)
-	wait_for_ack(rcv_channel);
+	chnl.send_msg(0, message)
+	wait_for_ack()
 	process_vld[0] = 1
 
 	# finished with the initialization - now wait for input commands
 	while 1:
 		rd, wr, err = select.select([sys.stdin], [], [], 0)
 		for io in rd:
-			handle_input(io.readline(), process_vld, rcv_channel, send_channel)
+			handle_input(io.readline(), process_vld)

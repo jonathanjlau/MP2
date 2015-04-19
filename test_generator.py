@@ -16,14 +16,14 @@ def quit(msg):
 if __name__ == "__main__":
 
 	# Check number of arguments
-	if len(sys.argv) != 5:
+	if len(sys.argv) != 4:
 		quit('Usage: python test_generator.py N P F')
 
 	# Check whether arguments are integers
 	try:
-		N = int(sys.argv[2])
-		P = int(sys.argv[3])
-		F = int(sys.argv[4])
+		N = int(sys.argv[1])
+		P = int(sys.argv[2])
+		F = int(sys.argv[3])
 	except TypeError:
 		quit(sys.stderr, 'N, P, or F is not an integer')
 
