@@ -245,7 +245,6 @@ def process_start(process_id, port, send_channel):
 	if DEBUG:
 		print >> sys.stderr, "coordinator SETUP Send_channel to process 0"
 	send_channel[process_id] = channels.Send_channel(COORDINATOR, base_port + process_id)
-	send_channel[process_id].make_connections()
 
 
 
@@ -471,7 +470,6 @@ def process(process_id, port_id):
 	# start a receive channel
 	print >> sys.stderr, 'Process thread started, id =', my_process_id
 	rcv_channel = channels.Rcv_channel(process_id, port_id)
-	rcv_channel.make_connections()
 
 	# initailize ft_table, process_vld, key_vld
 	ft_table = []
@@ -493,7 +491,6 @@ def process(process_id, port_id):
 
 	# setup send_channel to coordinator
 	send_channel[COORDINATOR] = channels.Send_channel(my_process_id, base_port + COORDINATOR)
-	send_channel[COORDINATOR].make_connections()
 
 	setup_message_handler()
 
@@ -528,7 +525,6 @@ if __name__ == "__main__":
 
 	# Check if the user enters the output file
 	base_port = 0
-	out_filename = "mp2.log"
 	i = 1
 	while i < len(sys.argv) :
 		if sys.argv[i] == '-g' :
@@ -549,7 +545,6 @@ if __name__ == "__main__":
 		print >> sys.stderr, "Coordinatior setup rcv channel"
 	rcv_channel = channels.Rcv_channel(COORDINATOR, base_port+COORDINATOR)
 	rcv_channel.queue_init()
-	rcv_channel.make_connections()
 
 	# start the process thread with id = 0 and rcv_channel = port + 1
 	process_start(0, base_port, send_channel)
