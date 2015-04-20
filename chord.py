@@ -89,9 +89,12 @@ class Node(threading.Thread):
 		self.msg_handler['ret-succ'] = self.ret_succ
 		self.msg_handler['ret-pred'] = self.ret_pred
 		self.msg_handler['update-pred'] = self.update_pred
-		self.msg_handler['update-finger'] = self.update_finger
-		self.msg_handler['split-key'] = self.split_key
+		self.msg_handler['update-finger-join'] = self.update_finger_join
+		self.msg_handler['update-finger-leave'] = self.update_finger_leave
+		self.msg_handler['add-key'] = self.add_key
+		self.msg_handler['remove-key'] = self.remove_key
 		self.msg_handler['closest-finger'] = self.closest_finger
+		self.msg_handler['leave'] = self.leave
 
 	def handle_message(self, msg):
 		'''Forwards each message to its own command handler'''
@@ -126,7 +129,7 @@ class Node(threading.Thread):
 	def update_pred(self, cmd):
 		'''Updates this node's predecessor and respond with ack'''
 		self.pred = int(cmd[1])
-		self.send_msg(int(cmd[1]), 'ack-update-pred')
+		self.send_msg(int(cmd[2]), 'ack-update-pred')
 
 
 ##################################################################
@@ -189,8 +192,8 @@ class Node(threading.Thread):
 			self.key_set = {i: True for i in xrange(256)}
 		else:
 			self.init_finger_table()
-			self.update_others()
-			self.transfer_keys()
+			self.update_others_join()
+			self.join_keys()
 
 			# Tell the coordinator this node finished joining
 			ack_join = 'ack-join'
@@ -217,7 +220,7 @@ class Node(threading.Thread):
 			sys.exit()
 
 		# Asks the successor to update its predecessor to this node
-		update_pred_msg = 'update-pred ' + str(self.nodeid)
+		update_pred_msg = 'update-pred ' + str(self.nodeid) + ' ' + str(self.nodeid)
 		self.send_msg(self.fingers[0], update_pred_msg)
 		update_pred_ack = self.recv_msg()
 		cmd = update_pred_ack.split()
@@ -246,42 +249,42 @@ class Node(threading.Thread):
 				else:
 					self.fingers[i] = succ
 
-	def update_others(self):
+	def update_others_join(self):
 		'''Ask other nodes to add this node to their finger table'''
 		for i in xrange(8):
 			candidate = (self.nodeid - 2**i + 1) % 256
 			pred = self.find_pred(candidate)
 			if pred != self.nodeid:
-				update_finger_msg = 'update-finger ' + str(self.nodeid) + ' ' + str(i)
-				self.send_msg(pred, update_finger_msg)
-				self.wait_until_recv('ack-update-finger')
+				update_finger_join_msg = 'update-finger-join ' + str(self.nodeid) + ' ' + str(i)
+				self.send_msg(pred, update_finger_join_msg)
+				self.wait_until_recv('ack-update-finger-join')
 
-	def update_finger(self, cmd):
+	def update_finger_join(self, cmd):
 		'''Updates this node's finger table and send an ack to the requesting node'''
 		s = int(cmd[1])
 		i = int(cmd[2])
 		n = self.nodeid
 		if s != n and self.within_right_interval(n, self.fingers[i], s):
 			self.fingers[i] = s
-			update_finger_msg = 'update-finger ' + str(s) + ' ' + str(i)
-			self.send_msg(self.pred, update_finger_msg)
+			update_finger_join_msg = 'update-finger-join ' + str(s) + ' ' + str(i)
+			self.send_msg(self.pred, update_finger_join_msg)
 		else:
-			self.send_msg(s, 'ack-update-finger')
+			self.send_msg(s, 'ack-update-finger-join')
 
-	def transfer_keys(self):
+	def join_keys(self):
 		'''Asks the sucessor to transfer keys to this node'''
-		split_key_msg = 'split-key ' + str(self.nodeid)
-		self.send_msg(self.fingers[0], split_key_msg)
-		ack_split_key = self.recv_msg()
-		cmd = ack_split_key.split()
-		if cmd[0] == 'ack-split-key':
+		remove_key_msg = 'remove-key ' + str(self.nodeid)
+		self.send_msg(self.fingers[0], remove_key_msg)
+		ack_remove_key = self.recv_msg()
+		cmd = ack_remove_key.split()
+		if cmd[0] == 'ack-remove-key':
 			for key in cmd[1:]:
 				self.key_set[int(key)] = True
 		else:
 			print >> sys.stderr, 'Unexpected message in transfer keys'
 			sys.exit()
 
-	def split_key(self, cmd):
+	def remove_key(self, cmd):
 		'''Returns the keys belonging to the requesting node'''
 		node = int(cmd[1])
 		keys = ''
@@ -290,7 +293,57 @@ class Node(threading.Thread):
 				keys += ' ' + str(key)
 				del(self.key_set[key])
 
-		self.send_msg(node, 'ack-split-key' + keys)
+		self.send_msg(node, 'ack-remove-key' + keys)
+
+##################################################################
+# Node join methods
+##################################################################
+
+	def leave(self, cmd):
+		'''Makes this node leave from the network'''
+		self.leave_keys()
+		self.update_others_leave()
+		update_pred_msg = 'update-pred ' + str(self.pred) + ' ' + str(self.nodeid)
+		self.send_msg(self.fingers[0], update_pred_msg)
+		self.wait_until_recv('ack-update-pred')
+		self.send_msg(256, 'ack-leave')
+		sys.exit()
+		
+	def leave_keys(self):
+		'''Moves this node's keys to the successor'''
+		keys = ''
+		for k in self.key_set.keys():
+			keys += ' ' + str(k)
+		self.send_msg(self.fingers[0], 'add-key' + keys)
+		self.wait_until_recv('ack-add-key')
+
+	def add_key(self, cmd):
+		'''Adds the keys received and sent an ack to the predecessor'''
+		for k in cmd[1:]:
+			self.key_set[int(k)] = True
+		self.send_msg(self.pred, 'ack-add-key')
+
+	def update_others_leave(self):
+		'''Ask other nodes to add remove this node from their finger table'''
+		for i in xrange(8):
+			candidate = (self.nodeid - 2**i + 1) % 256
+			pred = self.find_pred(candidate)
+			if pred != self.nodeid:
+				# Ask others to set their finger to this node's successor
+				update_finger_join_msg = 'update-finger-leave ' + str(self.fingers[0]) + ' ' + str(self.nodeid)
+				self.send_msg(pred, update_finger_join_msg)
+				self.wait_until_recv('ack-update-finger-leave')
+
+	def update_finger_leave(self, cmd):
+		'''Updates this node's finger table and send an ack to the requesting node'''
+		s = int(cmd[1])
+		n = int(cmd[2])
+		if n in self.fingers:
+			self.fingers = [s if n == x else x for x in self.fingers]
+			update_finger_leave_msg = 'update-finger-leave ' + str(s) + ' ' + str(n)
+			self.send_msg(self.pred, update_finger_leave_msg)
+		else:
+			self.send_msg(n, 'ack-update-finger-leave')
 
 
 ##################################################################

@@ -40,7 +40,7 @@ if __name__ == "__main__":
 		print 'reset-count'
 		rand_nodes = random.sample(all_nodes, P)
 		for node in rand_nodes:
-			print 'join ' + node
+			print 'join', node
 		print 'show-count'
 
 		# Perform find F times on random p and k
@@ -49,9 +49,11 @@ if __name__ == "__main__":
 		for f in xrange(F):
 			p = random.choice(cur_nodes)
 			k = random.choice(all_keys)
-			print 'find ' + p + ' ' + k
+			print 'find', p, k
 		print 'show-count'
 
 		# Remove all nodes other than node 0 to restart
 		for node in rand_nodes:
-			print 'leave ' + node
+			print 'leave', node
+
+	print 'quit'

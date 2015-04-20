@@ -2,6 +2,7 @@
 from __future__ import division
 import channels
 import chord
+import os
 import select
 import sys
 import threading
@@ -79,7 +80,7 @@ def input_join_process(command):
 		return
 
 	if p in nodes:
-		print >> sys.stderr, "Process", new_process, "has already joined."
+		print >> sys.stderr, "Process", p, "has already joined."
 		return
 
 	# Create a new node and starts it
@@ -126,7 +127,7 @@ def input_find_key(command):
 		if cmd[0] != 'ack-find-succ':
 			print >> sys.stderr, 'Unexpected message in find key'
 		else:
-			print 'Key', key, 'is in node', cmd[1]
+			print >> sys.stderr, 'Key', key, 'is in node', cmd[1]
 	else:
 		print >> sys.stderr, "Node", nodeid, "not found."
 
@@ -134,36 +135,38 @@ def input_find_key(command):
 # 1. send a message about the departure to all the existing processors
 # 2. update process_vld array
 def input_leave_process(command):
-	'''Handles the removal of a existing process'''
-	global chnl
-	global nodes
+	'''Handles the addition of a new process'''
 
-	# Check that the command has the right number of parameters
+	# check that the command has the right number of parameters
 	if len(command) != 2:
-		print >> sys.stderr, 'Usage: leave process_number(0-255)'
+		print >> sys.stderr, 'Usage: leave p'
 		return
 
-	del_process = int(command[1])
-	if not within_bounds(del_process) or del_process == 0:
+	p = int(command[1])
+
+	# Check whether the node number is within bounds and exists
+	if not within_bounds(p):
 		print >> sys.stderr, "Invalid process number"
 		return
 
-	if del_process in nodes:
+	if p not in nodes:
+		print >> sys.stderr, "Node", p, "does not exist."
+		return
 
-		message = 'leave_process ' + command[1]
+	if p == 0:
+		print >> sys.stderr, "Node", p, "cannot be removed."
 
-		# let all the existing valid processes know that we are deleting this process
-		for i in range(0, COORDINATOR):
-			if i in nodes :
-				chnl.send_msg(i, message)
-				wait_for_ack()
-
-		del nodes[del_process]
-
-
+	# Asks the node to leave the network
+	chnl.send_msg(p, 'leave')
+	ack = chnl.recv_msg(COORDINATOR)
+	cmd = ack.split()
+	if (cmd[0] == 'ack-leave'):
+		# Clean up after the node thread quits
+		chnl.remove_channel(p)
+		del nodes[p]
 	else:
-		print >> sys.stderr, "Process", del_process, "not found."
-
+		print >> sys.stderr, 'Error while leaving a node'
+	
 def input_show_key(command):
 	'''Outputs the keys stored at a single node'''
 	if len(command) != 2:
@@ -182,6 +185,7 @@ def input_show_key(command):
 
 	if nodeid in nodes:
 		print nodes[nodeid].get_key_str()
+		print
 	else:
 		print >> sys.stderr, "Node", nodeid, "not found"
 
@@ -189,6 +193,7 @@ def input_show_all(command):
 	'''Outputs the keys stored at each node'''
 	for item in sorted(nodes.items()):
 		print item[1].get_key_str()
+	print
 
 def input_show_count(command):
 	'''Displays the the total message count so far'''
@@ -204,47 +209,19 @@ def input_reset_count(command):
 
 def input_quit(command):
 	'''Exits the program'''
-	sys.exit()
-
-
-def msg_leave_process(command, my_id, ft_table, key_vld):
-	'''
-	# Coordinator's broadcast when a process is deleted.
-	# 1. update ft_table, process_vld
-	# 2. if deleting my process, transfer key storage to new process if needed
-	'''
-	global chnl
-	global nodes
-	del_process = int(command[1])
-	if del_process == my_id :
-		print >> sys.stderr, "Process thread has exited, id =", my_id
-
-		# send all keys to the successor if any
-		key_vld_string = vld_array_string(key_vld)
-		if key_vld_string != '' :
-			message = 'add_key' + key_vld_string
-			chnl.send_msg(ft_table[0].succ, message)
-		chnl.send_msg(COORDINATOR, 'ack')
-		sys.exit()
-	else:
-		del nodes[del_process]
-		process_vld[del_process] = 0
-		ft_table_update(my_id, ft_table)
-		chnl.send_msg(COORDINATOR, 'ack')
+	print >> sys.stderr, 'quitting'
+	sys.stdout.flush()
+	sys.stdout.close()
+	os._exit(0)
 
 '''
 Main function for the individual servers.
 
 Description:
-Each server connects to the sequencer and every other server using separate sockets
-It will then spawn two threads: one to send messages that have been queued and one to receive and delay messages
-After spawning the threads, the main function handles client input and server response to delivered messages
-The send thread continuously checks for messages in the send queue and sends them through the socket
-The receive thread continuously reads messages from sockets and delivers them based on receive time, delaying the delivery when necessary
+Sets up communication channels and node0, then responds to input
 
-More detail can be found in each thread's description.
+Can write show output to file using -g argument or output redirection
 
-To run commands from a file, use cat and pipe
 '''
 if __name__ == "__main__":
 
